@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalender Website mit Ereignis-Funktion und Dateiauswahl</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            transition: background-color 0.3s ease;
+        }
+
+        .dark-mode {
+            background-color: #2e2e2e;
+        }
+
+        .calendar-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            width: 300px;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .dark-mode .calendar-container {
+            background-color: #444;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        td {
+            background-color: #f9f9f9;
+            color: black;
+        }
+
+        td:hover {
+            background-color: #f1f1f1;
+            cursor: pointer;
+        }
+
+        .dark-mode td {
+            background-color: #555;
+            color: white;
+        }
+
+        .dark-mode td:hover {
+            background-color: #666;
+        }
+
+        .month-year {
+            text-align: center;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        .prev, .next {
+            cursor: pointer;
+        }
+
+        .toggle-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+
+        .dark-mode .toggle-btn {
+            background-color: #777;
+            color: white;
+        }
+
+        .file-input-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .file-input {
+            margin-top: 10px;
+        }
+
+        .event-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        .event-popup input, .event-popup button {
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 1em;
+        }
+
+        .event-popup button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .event-popup button:hover {
+            background-color: #45a049;
+        }
+
+        .delete-event-btn {
+            background-color: #f44336;
+            margin-top: 10px;
+        }
+
+        .delete-event-btn:hover {
+            background-color: #e53935;
+        }
+    </style>
+</head>
+<body>
+    <div class="calendar-container">
+        <div class="month-year">
+            <span class="prev">&lt;</span>
+            <span id="month-year">Dezember 2024</span>
+            <span class="next">&gt;</span>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>So</th>
+                    <th>Mo</th>
+                    <th>Di</th>
+                    <th>Mi</th>
+                    <th>Do</th>
+                    <th>Fr</th>
+                    <th>Sa</th>
+                </tr>
+            </thead>
+            <tbody id="calendar-days">
+                <!-- Die Tage des Kalenders werden hier dynamisch eingefügt -->
+            </tbody>
+        </table>
+
+        <button class="toggle-btn" id="toggle-dark-mode">Dark Mode</button>
+
+        <div class="file-input-container">
+            <label for="file-upload" class="toggle-btn">Wähle eine Datei</label>
+            <input type="file" id="file-upload" class="file-input" />
+        </div>
+    </div>
+
+    <!-- Popup für das Hinzufügen und Löschen von Ereignissen -->
+    <div class="event-popup" id="event-popup">
+        <h3>Neues Ereignis</h3>
+        <input type="text" id="event-title" placeholder="Ereignistitel" />
+        <textarea id="event-description" placeholder="Beschreibung" rows="4"></textarea>
+        <button id="save-event">Ereignis speichern</button>
+        <button id="delete-event" class="delete-event-btn">Ereignis löschen</button>
+        <button id="close-popup">Abbrechen</button>
+    </div>
+
+    <script>
+        const monthYearElem = document.getElementById('month-year');
+        const calendarDaysElem = document.getElementById('calendar-days');
+        const prevButton = document.querySelector('.prev');
+        const nextButton = document.querySelector('.next');
+        const toggleButton = document.getElementById('toggle-dark-mode');
+        const body = document.body;
+        const fileInput = document.getElementById('file-upload');
+        const eventPopup = document.getElementById('event-popup');
+        const eventTitleInput = document.getElementById('event-title');
+        const eventDescriptionInput = document.getElementById('event-description');
+        const saveEventButton = document.getElementById('save-event');
+        const deleteEventButton = document.getElementById('delete-event');
+        const closePopupButton = document.getElementById('close-popup');
+
+        let currentDate = new Date();
+        let isDarkMode = false;
+        let selectedDay = null;
+        let events = {}; // Speicherung der Ereignisse als { "day-month-year": { title, description } }
+
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            monthYearElem.textContent = `${getMonthName(month)} ${year}`;
+
+            const firstDayOfMonth = new Date(year, month, 1);
+            const lastDayOfMonth = new Date(year, month + 1, 0);
+            const daysInMonth = lastDayOfMonth.getDate();
+            const startDay = firstDayOfMonth.getDay();
+
+            let daysHtml = '';
+
+            for (let i = 0; i < startDay; i++) {
+                daysHtml += '<td></td>';
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                if ((startDay + day - 1) % 7 === 0 && day !== 1) {
+                    daysHtml += '</tr><tr>';
+                }
+
+                const dayKey = `${day}-${month + 1}-${year}`;
+                const event = events[dayKey] ? `<div class="event">${events[dayKey].title}</div>` : '';
+
+                daysHtml += `<td class="day" data-day="${day}" data-month="${month + 1}" data-year="${year}">${day}${event}</td>`;
+            }
+
+            const totalCells = startDay + daysInMonth;
+            const remainingCells = 7 - (totalCells % 7);
+            for (let i = 0; i < remainingCells && remainingCells !== 7; i++) {
+                daysHtml += '<td></td>';
+            }
+
+            calendarDaysElem.innerHTML = `<tr>${daysHtml}</tr>`;
+        }
+
+        function getMonthName(monthIndex) {
+            const months = [
+                "Januar", "Februar", "März", "April", "Mai", "Juni",
+                "Juli", "August", "September", "Oktober", "November", "Dezember"
+            ];
+            return months[monthIndex];
+        }
+
+        prevButton.addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        });
+
+        nextButton.addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        });
+
+        toggleButton.addEventListener('click', () => {
+            isDarkMode = !isDarkMode;
+            if (isDarkMode) {
+                body.classList.add('dark-mode');
+                toggleButton.textContent = 'Light Mode';
+            } else {
+                body.classList.remove('dark-mode');
+                toggleButton.textContent = 'Dark Mode';
+            }
+        });
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                alert(`Datei ausgewählt: ${file.name}`);
+            }
+        });
+
+        // Zeigt das Popup an, wenn auf einen Tag geklickt wird
+        calendarDaysElem.addEventListener('click', (event) => {
+            if (event.target.classList.contains('day')) {
+                const day = event.target.getAttribute('data-day');
+                const month = event.target.getAttribute('data-month');
+                const year = event.target.getAttribute('data-year');
+                selectedDay = `${day}-${month}-${year}`;
+
+                eventPopup.style.display = 'block'; // Popup anzeigen
+                eventTitleInput.value = ''; // Eingabefelder zurücksetzen
+                eventDescriptionInput.value = '';
+
+                // Wenn ein Ereignis für den Tag existiert, fülle die Felder
+                if (events[selectedDay]) {
+                    eventTitleInput.value = events[selectedDay].title;
+                    eventDescriptionInput.value = events[selectedDay].description;
+                }
+            }
+        });
+
+        // Ereignis speichern
+        saveEventButton.addEventListener('click', () => {
+            const title = eventTitleInput.value;
+            const description = eventDescriptionInput.value;
+
+            if (title.trim()) {
+                events[selectedDay] = { title, description };
+                eventPopup.style.display = 'none'; // Popup schließen
+                renderCalendar(); // Kalender neu rendern
+            }
+        });
+
+        // Ereignis löschen
+        deleteEventButton.addEventListener('click', () => {
+            if (events[selectedDay]) {
+                delete events[selectedDay]; // Löscht das Ereignis aus der Speicherung
+                eventPopup.style.display = 'none'; // Popup schließen
+                renderCalendar(); // Kalender neu rendern
+            }
+        });
+
+        // Schließt das Popup
+        closePopupButton.addEventListener('click', () => {
+            eventPopup.style.display = 'none';
+        });
+
+        renderCalendar();
+    </script>
+</body>
+</html>
